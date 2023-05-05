@@ -3,6 +3,10 @@ const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt-nodejs");
 const cors = require("cors");
 const knex = require("knex");
+const register = require("./controllers/register");
+const signin = require("./controllers/signin");
+const profileid = require("./controllers/profileID");
+const entries = require("./controllers/entries");
 
 const app = express();
 app.use(bodyParser.json());
@@ -32,93 +36,16 @@ app.get("/", (req, res) => {
 });
 
 // SIGN IN
-app.post("/signin", (req, res) => {
-    const { email, password } = req.body;
-    db.select('email', 'hash').from('login')
-    .where('email','=',email)
-    .then(data => {
-      const isValid = bcrypt.compareSync(password, data[0].hash);
-      if (isValid) {
-          return db.select('*').from('users')
-          .where('email', '=' , email)
-          .then(user => {
-              console.log(user);
-              res.json(user[0])
-          })
-          .catch(err => res.status(400).json('if error'));
-      } else {
-          res.status(400).json('else error');
-      }
-    })
-    .catch(err => {
-      res.status(400).json('hatali giris');
-    })
-  });
+app.post("/signin", (req,res) => {signin.handleSignin(req, res, db, bcrypt)});
 
 // REGISTER
-app.post("/register", (req, res) => {
-  const { email, name, password } = req.body;
-  const hash = bcrypt.hashSync(password);
-  db.transaction((trx) => {
-    trx
-      .insert({
-        hash: hash,
-        email: email,
-      })
-      .into("login")
-      .returning("email")
-      .then((loginEmail) => {
-        return trx("users")
-          .returning("*")
-          .insert({
-            email: loginEmail[0].email,
-            name: name,
-            joined: new Date(),
-          })
-          .then((user) => {
-            res.json(user[0]);
-          });
-      })
-      .then(trx.commit)
-      .catch(trx.rollback);
-  })
-  .catch((err) => res.status(400).json("unable to register"))
-});
+app.post("/register", (req,res) => {register.handleRegister(req,res,db,bcrypt)});
 
 // USER PROFOLE - ID
-app.get("/profile/:id", (req, res) => {
-  const { id } = req.params;
-  db.select("*")
-    .from("users")
-    .where({
-      id: id,
-    })
-    .then((user) => {
-      if (user.length) {
-        res.json(user[0]);
-      } else {
-        res.status(400).json("user not found");
-      }
-    })
-    .catch((err) => res.status(400).json("error"));
-});
+app.get("/profile/:id", (req,res) => {profileid.handleProfileId(req,res,db)});
 
 // COUNTING ENTRIES BY ID
-app.put("/image", (req, res) => {
-  const { id } = req.body;
-  console.log(`recived id: ${id}`);
-  db.select("*")
-    .from("users")
-    .where("id", "=", id)
-    .increment("entries", 1)
-    .returning("entries")
-    .then((entries) => {
-      res.json(entries[0]);
-    })
-    .catch((err) => {
-      res.status(400).json("error to get entries");
-    });
-});
+app.put("/image", (req,res) => {entries.handleEntries(req,res,db)});
 
 // LISTEN THE APP
 app.listen(3000, () => {
